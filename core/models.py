@@ -42,7 +42,8 @@ class Order(models.Model):
     package_details = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=20, default="pending")
-
+    pickup_latitude = models.FloatField(null=True, blank=True)
+    pickup_longitude = models.FloatField(null=True, blank=True)
     def save(self, *args, **kwargs):
         if not self.token:
             self.token = self.generate_token()
