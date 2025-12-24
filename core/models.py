@@ -1,10 +1,10 @@
 # Create your models here.
-import uuid
 import random
 import string
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
+from .utils import generate_otp, otp_expiry_time
 
 class User(AbstractUser):
     ROLE_CHOICES = (('customer','Customer'),('driver','Driver'),('admin','Admin'))
@@ -34,7 +34,7 @@ class Order(models.Model):
     warehouse = models.ForeignKey(Warehouse, on_delete=models.SET_NULL, null=True)
 
     # NEW FIELD (unique token for each order)
-    token = models.CharField(max_length=20, unique=True, blank=True)
+    token = models.CharField(max_length=20, unique=True, db_index=True, blank=True)
 
     pickup_address = models.TextField()
     dropoff_address = models.TextField()
@@ -69,14 +69,23 @@ class Vehicle(models.Model):
         return f"{self.vehicle_type} - {self.plate_number}"
 
 class Shipment(models.Model):
-    order = models.OneToOneField('Order', on_delete=models.CASCADE)
+    order = models.OneToOneField(Order, on_delete=models.CASCADE)
     driver = models.ForeignKey(User, null=True, blank=True,
                                limit_choices_to={'role': 'driver'}, on_delete=models.SET_NULL)
     vehicle = models.ForeignKey('Vehicle', null=True, blank=True, on_delete=models.SET_NULL)
     assigned_at = models.DateTimeField(null=True, blank=True)
     picked_at = models.DateTimeField(null=True, blank=True)
     delivered_at = models.DateTimeField(null=True, blank=True)
-    status = models.CharField(max_length=20, default='assigned')  # assigned, in_transit, delivered
+    status = models.CharField(
+        max_length=20,
+        default='pending',
+        choices=[
+            ('pending', 'Pending'),
+            ('assigned', 'Assigned'),
+            ('in_transit', 'In Transit'),
+            ('delivered', 'Delivered'),
+        ]
+    )
     pickup_otp = models.CharField(max_length=10, null=True, blank=True)
     pickup_otp_expires = models.DateTimeField(null=True, blank=True)
     delivery_otp = models.CharField(max_length=10, null=True, blank=True)
@@ -105,3 +114,13 @@ class Shipment(models.Model):
         if self.delivery_otp and self.delivery_otp_expires and timezone.now() <= self.delivery_otp_expires:
             return self.delivery_otp == code
         return False
+
+
+class Invoice(models.Model):
+    order = models.OneToOneField(Order, on_delete=models.CASCADE)
+    invoice_number = models.CharField(max_length=30, unique=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    generated_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.invoice_number
