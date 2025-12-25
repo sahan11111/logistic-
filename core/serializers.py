@@ -104,6 +104,7 @@ class ShipmentSerializer(serializers.ModelSerializer):
 class InvoiceSerializer(serializers.ModelSerializer):
     order_token = serializers.CharField(source="order.token", read_only=True)
     customer = serializers.CharField(source="order.customer.username", read_only=True)
+    
 
     class Meta:
         model = Invoice
