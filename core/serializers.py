@@ -3,19 +3,62 @@ from rest_framework import serializers
 from .models import *
 from .utils import calculate_distance
 from django.contrib.auth import get_user_model
+from django.core.mail import send_mail
+from django.conf import settings
 User = get_user_model()
-class UserCreateSerializer(serializers.ModelSerializer):
+class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
+    confirm_password = serializers.CharField(write_only=True)
+    role=serializers.ChoiceField(choices=User.ROLE_CHOICES)
 
     class Meta:
         model = User
-        fields = ['username', 'email', 'phone', 'password', 'role']
+        fields = ['username', 'email', 'phone',  'role' ,'password', 'confirm_password']
+        extra_kwargs = {'id': {'read_only': True}}
+        
+    def validate(self, data):
+        if data['password'] != data['confirm_password']:
+            raise serializers.ValidationError("Passwords do not match")
+        return data
 
     def create(self, validated_data):
-        user = User(**validated_data)
-        user.set_password(validated_data['password'])
+        validated_data.pop('confirm_password')
+        role=validated_data.pop('role')
+        user=models.User.objects.create_user(**validated_data, role=role)
+        user.role=role
+        user.is_active = False  # Inactive until email verification
+        
+        user.otp=str(generate_otp())
         user.save()
+        
+        send_mail(
+            subject='User activation',
+            message=f'Your OTP is {user.otp} for {user.email}',
+            from_email=settings.SENDER_EMAIL_USER,
+            recipient_list=[user.email],
+            fail_silently=False
+        )
+        
         return user
+        
+class UserVerificationSerializer(serializers.Serializer):
+    otp = serializers.CharField(max_length=255)
+    email = serializers.EmailField(max_length=255)
+    
+    def update(self, user, validated_data):
+        otp = validated_data.get('otp')
+        email = validated_data.get('email')
+        
+        if otp == user.otp and email == user.email:
+            user.is_active = True
+            user.otp = None
+            user.save()
+        else:
+            raise serializers.ValidationError({
+                'otp': 'Invalid otp or email'
+            })
+
+        return user       
 
 
 class OrderSerializer(serializers.ModelSerializer):

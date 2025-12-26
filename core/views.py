@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from .models import *
 from .permissions import *
 from rest_framework.decorators import action 
+from django.shortcuts import get_object_or_404
 
 User = get_user_model()
 
@@ -17,16 +18,31 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from django.utils.timezone import now
-
+from drf_yasg.utils import swagger_auto_schema
 from .models import *
 from .serializers import *
 from .permissions import *
 from .utils import calculate_distance
 
 
-class UserViewSet(ModelViewSet):
-    queryset = User.objects.filter(is_active=True)
-    serializer_class = UserCreateSerializer
+class UserViewSet(GenericViewSet,CreateModelMixin):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    
+    # This view is for user verification
+    @swagger_auto_schema(
+        methods=['put'],
+        request_body=serializers.UserVerificationSerializer
+    )
+    @action(methods=['put'],detail=False)
+    def verification(self, request):
+        user = get_object_or_404(User, email=request.data.get('email'))
+        serializer = serializers.UserVerificationSerializer(user, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({
+            'details':'User has been successfully verified.'
+        })
 
 
 class OrderViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):

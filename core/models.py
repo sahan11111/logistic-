@@ -9,11 +9,15 @@ from .utils import generate_otp, otp_expiry_time
 class User(AbstractUser):
     ROLE_CHOICES = (('customer','Customer'),('driver','Driver'),('admin','Admin'))
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    email = models.EmailField(unique=True)
+    otp=models.CharField(max_length=6, blank=True, null=True)
     phone = models.CharField(max_length=20, blank=True, null=True)
     is_available = models.BooleanField(default=False)  # driver availability
     # driver current lat/lon (optional)
     current_latitude = models.FloatField(null=True, blank=True)
     current_longitude = models.FloatField(null=True, blank=True)
+    
+    
 
 
 class Warehouse(models.Model):
