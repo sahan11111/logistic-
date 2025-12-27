@@ -24,7 +24,7 @@ class UserSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data.pop('confirm_password')
         role=validated_data.pop('role')
-        user=models.User.objects.create_user(**validated_data, role=role)
+        user=User.objects.create_user(**validated_data, role=role)
         user.role=role
         user.is_active = False  # Inactive until email verification
         
@@ -34,7 +34,7 @@ class UserSerializer(serializers.ModelSerializer):
         send_mail(
             subject='User activation',
             message=f'Your OTP is {user.otp} for {user.email}',
-            from_email=settings.SENDER_EMAIL_USER,
+            from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[user.email],
             fail_silently=False
         )
@@ -138,6 +138,7 @@ class ShipmentSerializer(serializers.ModelSerializer):
             'order_token',
             'customer',
             'driver',
+            'driver_name',
             'vehicle',
             'assigned_at',
             'delivered_at',
