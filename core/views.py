@@ -3,7 +3,9 @@ from rest_framework.mixins import *
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from .serializers import *
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, authenticate
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.authtoken.models import Token
 from .models import *
 from .permissions import *
 from rest_framework.decorators import action 
@@ -50,8 +52,53 @@ class UserViewSet(GenericViewSet,CreateModelMixin):
     
     def get_serializer_class(self):
         if self.action == 'login':
-            return serializers.UserLoginSerializer
+            return UserLoginSerializer
         return super().get_serializer_class()
+    
+    @action(detail=False, methods=['get'], url_path='detail', permission_classes=[IsAuthenticated])
+    def user_detail(self, request):
+        serializer = self.get_serializer(request.user)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def list_users(self, request):
+        user = request.user
+        if not user.groups.filter(name="Admin").exists():
+            return Response({'detail': 'You do not have permission to view this.'}, status=403)
+        
+        users = self.get_queryset()
+        serializer = self.get_serializer(users, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['post'])
+    def login(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data.get('email')
+        password = serializer.validated_data.get('password')
+        role = serializer.validated_data.get('role')
+
+        # ✅ authenticate with email (USERNAME_FIELD)
+        user = authenticate(request, email=email, password=password)
+
+        if not user:
+            return Response({"error": "Invalid email or password"}, status=400)
+
+        if user.role != role:
+            return Response({"error": "Role mismatch"}, status=400)
+
+        if not user.is_active:
+            raise PermissionDenied("OTP verification incomplete. Please verify your email to activate the account.")
+
+        token, _ = Token.objects.get_or_create(user=user)
+        return Response({
+            "id": user.id,
+            "email": user.email,
+            "role": user.role,
+            "groups": list(user.groups.values_list("name", flat=True)),
+            "token": token.key,
+        })
 
 class OrderViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
     serializer_class = OrderCreateSerializer

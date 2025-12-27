@@ -4,7 +4,6 @@ import string
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
-from .utils import generate_otp, otp_expiry_time
 
 class User(AbstractUser):
     ROLE_CHOICES = (('customer','Customer'),('driver','Driver'),('admin','Admin'))
